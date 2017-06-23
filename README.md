@@ -1,7 +1,7 @@
 # redis-token-bucket
 
 ## Usage:
-```
+```python
 from redis_token_bucket import TokenBucketManager
 
 tbm = TokenBucketManager(redis_url="redis://path-to-your-redis", default_rate=10)
