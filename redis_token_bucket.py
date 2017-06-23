@@ -4,7 +4,9 @@ import time
 
 
 class TokenBucketManager(object):
-    def __init__(self, redis_url="redis://localhost", default_rate=5):
+    def __init__(self, redis_url=None, default_rate=5):
+        if redis_url is None:
+            redis_url = "redis://localhost:6379"
         self._redis_conn = redis.StrictRedis.from_url(url=redis_url)
         ok = True
         try:
