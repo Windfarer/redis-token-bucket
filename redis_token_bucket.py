@@ -4,7 +4,7 @@ import time
 
 
 class TokenBucketManager(object):
-    def __init__(self, redis_url=None, default_rate=5):
+    def __init__(self, redis_url=None, default_rate=5, default_burst=5):
         if redis_url is None:
             redis_url = "redis://localhost:6379"
         self._redis_conn = redis.StrictRedis.from_url(url=redis_url)
@@ -17,6 +17,7 @@ class TokenBucketManager(object):
         if not ok:
             self._redis_conn = None
         self._default_rate = default_rate
+        self._default_burst = default_burst
         self._default_init_rate = default_rate - 1  # use one token after init
 
     def get_token(self, key):
@@ -37,20 +38,41 @@ class TokenBucketManager(object):
         logging.debug(self._redis_conn.hget(key, "tk"))
         return True
 
-    def _create_bucket(self, key):
+    def _create_bucket(self, key, rate=None, burst=None):
         logging.debug("create bucket")
-        tk = self._default_init_rate
         ts = time.time()
-        self._redis_conn.pipeline().hset(key, "tk", tk).hset(key, "ts", ts).execute()
+        if not burst:
+            burst = self._default_burst
+        if not rate:
+            rate = self._default_rate
+        tk = min(rate, burst) - 1
+        self._redis_conn.pipeline()\
+            .hset(key, "tk", tk)\
+            .hset(key, "ts", ts)\
+            .hset(key, "bst", burst).execute()
         return tk
 
-
-    def _check_and_refill(self, key):
+    def _check_and_refill(self, key, rate=None, burst=None):
         logging.debug("check and refill")
         last_refill = float(self._redis_conn.hget(key, "ts"))
-        if last_refill + 1 < time.time():
-            tk = self._default_init_rate
-            self._redis_conn.pipeline().hset(key, "tk", tk).hset(key, "ts", time.time()).execute()
+        n = int((time.time() - last_refill) / 1)
+        if n > 0:
+            bst = self._redis_conn.hget(key, "bst")
+            if not bst:
+                if burst:
+                    bst = burst
+                else:
+                    bst = self._default_burst
+                self._redis_conn.hset(key, "bst", burst)
+            bst = int(bst)
+            if not rate:
+                rate = self._default_rate
+            tk = min(rate * n, bst) - 1
+            self._redis_conn.pipeline()\
+                .hset(key, "tk", tk)\
+                .hset(key, "ts", time.time())
+            logging.debug(self._redis_conn.hget(key, "tk"))
             return tk
         else:
             return -1
+
