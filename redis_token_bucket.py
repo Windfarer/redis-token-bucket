@@ -49,7 +49,8 @@ class TokenBucketManager(object):
         self._redis_conn.pipeline()\
             .hset(key, "tk", tk)\
             .hset(key, "ts", ts)\
-            .hset(key, "bst", burst).execute()
+            .hset(key, "bst", burst)\
+            .execute()
         return tk
 
     def _check_and_refill(self, key, rate=None, burst=None):
@@ -70,9 +71,16 @@ class TokenBucketManager(object):
             tk = min(rate * n, bst) - 1
             self._redis_conn.pipeline()\
                 .hset(key, "tk", tk)\
-                .hset(key, "ts", time.time())
+                .hset(key, "ts", time.time())\
+                .execute()
             logging.debug(self._redis_conn.hget(key, "tk"))
             return tk
         else:
             return -1
 
+if __name__ == '__main__':
+    tb = TokenBucketManager()
+    import time
+    while True:
+        print(tb.get_token("abcd"))
+        time.sleep(0.3)
